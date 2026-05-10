@@ -6,7 +6,7 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 
-@Entity('failed_login_attempts')
+@Entity({ schema: 'auth', name: 'failed_login_attempts' })
 @Index('idx_failed_login_user_time', ['userId', 'attemptedAt'])
 export class FailedLoginAttempt {
   @PrimaryGeneratedColumn('uuid')

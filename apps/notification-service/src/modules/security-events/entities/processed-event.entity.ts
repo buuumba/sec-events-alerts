@@ -1,6 +1,6 @@
 import { CreateDateColumn, Entity, PrimaryColumn } from 'typeorm';
 
-@Entity('processed_events')
+@Entity({ schema: 'notification', name: 'processed_events' })
 export class ProcessedEvent {
   @PrimaryColumn('uuid')
   eventId: string;

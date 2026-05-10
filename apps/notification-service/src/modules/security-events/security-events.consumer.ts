@@ -14,6 +14,12 @@ export class SecurityEventsConsumer {
     exchange: RABBITMQ.EXCHANGE,
     routingKey: RABBITMQ.ROUTING_KEY_WILDCARD,
     queue: RABBITMQ.QUEUE,
+    queueOptions: {
+      durable: true,
+      arguments: {
+        'x-dead-letter-exchange': RABBITMQ.DLX,
+      },
+    },
     errorHandler: createRetryErrorHandler,
   })
   async consume(event: SecurityEvent): Promise<void> {

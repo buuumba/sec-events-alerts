@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { notificationMigrations } from '../../databases/migrations';
+
 @Module({
   imports: [
     TypeOrmModule.forRootAsync({
@@ -9,12 +11,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
       useFactory: (config: ConfigService) => ({
         type: 'postgres',
         url: config.getOrThrow<string>('database.url'),
-        schema: config.getOrThrow<string>('database.schema'),
         autoLoadEntities: true,
         synchronize: false,
         migrationsRun: true,
+        migrationsTableName: 'notification_migrations',
         migrationsTransactionMode: 'each' as const,
-        migrations: [__dirname + '/../../databases/migrations/*.js'],
+        migrations: notificationMigrations,
         logging: config.get<boolean>('database.logging'),
       }),
     }),
