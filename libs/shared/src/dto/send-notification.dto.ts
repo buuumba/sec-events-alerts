@@ -1,6 +1,6 @@
 import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
-import { EventSeverity } from '../enums/event-severity.enum.js';
-import { SecurityEventType } from '../enums/event-type.enum.js';
+import { EventSeverity } from '../enums/event-severity.enum';
+import { SecurityEventType } from '../enums/event-type.enum';
 
 export class SendNotificationDto {
   @IsUUID()
