@@ -14,23 +14,13 @@ import { SecurityEventsPublisher } from '../../integrations/events/security-even
 import { RegisterUserDto } from '../users/dto/register-user.dto';
 import { LoginDto } from './dto/login.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { TokenResponseDto } from './dto/token-response.dto';
+import { UserResponseDto } from './dto/user-response.dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { BruteForceService } from './brute-force.service';
 import { User } from '../users/entities/user.entity';
 
 const BCRYPT_SALT_ROUNDS = 12;
-
-export interface TokenResponse {
-  accessToken: string;
-}
-
-export interface UserResponse {
-  id: string;
-  email: string;
-  role: string;
-  isLocked: boolean;
-  createdAt: Date;
-}
 
 @Injectable()
 export class AuthService {
@@ -44,13 +34,13 @@ export class AuthService {
     private readonly securityEventsPublisher: SecurityEventsPublisher,
   ) {}
 
-  async register(dto: RegisterUserDto): Promise<TokenResponse> {
+  async register(dto: RegisterUserDto): Promise<TokenResponseDto> {
     const user = await this.usersService.createUser(dto);
     this.logger.log(`User registered — email=${dto.email} userId=${user.id}`);
     return this.generateToken(user);
   }
 
-  async login(dto: LoginDto, ip?: string): Promise<TokenResponse> {
+  async login(dto: LoginDto, ip?: string): Promise<TokenResponseDto> {
     const user = await this.usersRepository.findByEmail(dto.email);
 
     if (user?.isLocked) {
@@ -127,7 +117,7 @@ export class AuthService {
     });
   }
 
-  getProfile(user: User): UserResponse {
+  getProfile(user: User): UserResponseDto {
     return {
       id: user.id,
       email: user.email,
@@ -178,7 +168,7 @@ export class AuthService {
     }
   }
 
-  private generateToken(user: User): TokenResponse {
+  private generateToken(user: User): TokenResponseDto {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
