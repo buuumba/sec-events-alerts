@@ -15,18 +15,6 @@ import { RABBITMQ } from '@app/shared';
             type: RABBITMQ.EXCHANGE_TYPE,
             options: { durable: true },
           },
-          {
-            name: RABBITMQ.DLX,
-            type: 'fanout',
-            options: { durable: true },
-          },
-        ],
-        queues: [
-          {
-            name: RABBITMQ.DLQ,
-            options: { durable: true },
-            bindQueueArguments: { 'x-dead-letter-exchange': RABBITMQ.DLX },
-          },
         ],
         connectionInitOptions: { wait: false },
       }),
