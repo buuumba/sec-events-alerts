@@ -23,7 +23,7 @@ export class SecurityEventFactory {
       eventId: randomUUID(),
       type: payload.type,
       severity: SEVERITY_MAP[payload.type],
-      userId: payload.userId,
+      userId: payload.userId ?? 'anonymous',
       ip: payload.ip,
       metadata: payload.metadata ?? {},
       timestamp: new Date().toISOString(),
