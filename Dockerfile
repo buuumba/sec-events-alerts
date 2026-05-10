@@ -1,25 +1,23 @@
-FROM node:20-alpine AS builder
-
-ARG SERVICE_NAME
-
+FROM node:22-alpine AS base
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml ./
-RUN corepack enable && pnpm install --frozen-lockfile
+FROM base AS prod-deps
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
+FROM base AS build
+ARG SERVICE_NAME
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 COPY . .
 RUN npx nest build ${SERVICE_NAME}
 
-FROM node:20-alpine
-
+FROM base
 ARG SERVICE_NAME
 ENV SERVICE_NAME=${SERVICE_NAME}
-
-WORKDIR /app
-
-COPY package.json pnpm-lock.yaml ./
-RUN corepack enable && pnpm install --frozen-lockfile --prod
-
-COPY --from=builder /app/dist ./dist
-
-CMD node dist/apps/${SERVICE_NAME}/src/main
+COPY --from=prod-deps /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+CMD ["sh", "-c", "node dist/apps/${SERVICE_NAME}/src/main"]
