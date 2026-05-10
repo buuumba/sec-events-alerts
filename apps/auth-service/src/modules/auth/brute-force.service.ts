@@ -1,4 +1,4 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 
 const BRUTE_FORCE_THRESHOLD = 3;
 const LOCK_THRESHOLD = 5;
@@ -13,8 +13,9 @@ interface AttemptRecord {
 
 @Injectable()
 export class BruteForceService implements OnModuleDestroy {
+  private readonly logger = new Logger(BruteForceService.name);
   private readonly attempts = new Map<string, AttemptRecord>();
-  private readonly cleanupTimer: NodeJS.Timeout;
+  private readonly cleanupTimer: ReturnType<typeof setInterval>;
 
   constructor() {
     this.cleanupTimer = setInterval(() => this.cleanup(), CLEANUP_INTERVAL_MS);
@@ -38,6 +39,16 @@ export class BruteForceService implements OnModuleDestroy {
     }
 
     existing.count += 1;
+
+    if (existing.count === BRUTE_FORCE_THRESHOLD) {
+      this.logger.warn(
+        `Brute force threshold reached — userId=${userId} count=${existing.count}`,
+      );
+    } else if (existing.count === LOCK_THRESHOLD) {
+      this.logger.warn(
+        `Lock threshold reached — userId=${userId} count=${existing.count}`,
+      );
+    }
   }
 
   shouldEmitBruteForce(userId: string): boolean {

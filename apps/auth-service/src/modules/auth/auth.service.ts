@@ -1,6 +1,7 @@
 import {
   ForbiddenException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -33,6 +34,8 @@ export interface UserResponse {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly usersRepository: UsersRepository,
     private readonly usersService: UsersService,
@@ -43,6 +46,7 @@ export class AuthService {
 
   async register(dto: RegisterUserDto): Promise<TokenResponse> {
     const user = await this.usersService.createUser(dto);
+    this.logger.log(`User registered — email=${dto.email} userId=${user.id}`);
     return this.generateToken(user);
   }
 
@@ -50,6 +54,9 @@ export class AuthService {
     const user = await this.usersRepository.findByEmail(dto.email);
 
     if (user?.isLocked) {
+      this.logger.warn(
+        `Login blocked — email=${dto.email} reason=account_locked`,
+      );
       throw new ForbiddenException('Account is locked');
     }
 
@@ -57,11 +64,17 @@ export class AuthService {
       user !== null && (await compare(dto.password, user.passwordHash));
 
     if (!isPasswordValid) {
+      this.logger.warn(
+        `Login failed — email=${dto.email} ip=${ip ?? 'unknown'}`,
+      );
       await this.handleFailedLogin(user, ip, dto.email);
       throw new UnauthorizedException('Invalid credentials');
     }
 
     this.bruteForceService.resetAttempts(user.id);
+    this.logger.log(
+      `Login success — userId=${user.id} role=${user.role} ip=${ip ?? 'unknown'}`,
+    );
 
     if (user.role === UserRole.ADMIN) {
       await this.securityEventsPublisher.publish({
@@ -92,6 +105,10 @@ export class AuthService {
     const newPasswordHash = await hash(dto.newPassword, BCRYPT_SALT_ROUNDS);
     await this.usersRepository.save({ ...user, passwordHash: newPasswordHash });
 
+    this.logger.log(
+      `Password changed — userId=${user.id} ip=${ip ?? 'unknown'}`,
+    );
+
     await this.securityEventsPublisher.publish({
       type: SecurityEventType.PASSWORD_CHANGED,
       userId: user.id,
@@ -101,6 +118,7 @@ export class AuthService {
   }
 
   async simulateSuspiciousIp(user: User, ip: string): Promise<void> {
+    this.logger.log(`Suspicious IP simulated — userId=${user.id} ip=${ip}`);
     await this.securityEventsPublisher.publish({
       type: SecurityEventType.SUSPICIOUS_IP,
       userId: user.id,
