@@ -1,9 +1,9 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { databaseConfig, rabbitmqConfig } from '@app/shared';
 import { appConfig } from './app.config';
-import { databaseConfig } from './database.config';
-import { rabbitmqConfig } from './rabbitmq.config';
 
+@Global()
 @Module({
   imports: [
     ConfigModule.forRoot({

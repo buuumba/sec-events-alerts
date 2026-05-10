@@ -1,4 +1,10 @@
-import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
+import {
+  IsEnum,
+  IsObject,
+  IsOptional,
+  IsString,
+  IsUUID,
+} from 'class-validator';
 import { EventSeverity } from '../enums/event-severity.enum';
 import { SecurityEventType } from '../enums/event-type.enum';
 
@@ -18,6 +24,9 @@ export class SendNotificationDto {
   @IsString()
   @IsOptional()
   ip?: string;
+
+  @IsObject()
+  metadata: Record<string, unknown>;
 
   @IsString()
   timestamp: string;
