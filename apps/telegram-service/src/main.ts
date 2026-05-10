@@ -1,8 +1,10 @@
 import { NestFactory } from '@nestjs/core';
-import { TelegramServiceModule } from './telegram-service.module';
+import { AppModule } from './app.module.js';
 
-async function bootstrap() {
-  const app = await NestFactory.create(TelegramServiceModule);
-  await app.listen(process.env.port ?? 3000);
+async function bootstrap(): Promise<void> {
+  const app = await NestFactory.create(AppModule);
+  const port = process.env.TELEGRAM_SERVICE_PORT ?? 3002;
+  await app.listen(port);
 }
+
 bootstrap();

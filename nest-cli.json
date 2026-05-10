@@ -1,14 +1,13 @@
 {
   "$schema": "https://json.schemastore.org/nest-cli",
   "collection": "@nestjs/schematics",
-  "sourceRoot": "apps/sec-events-alerts/src",
+  "sourceRoot": "apps/auth-service/src",
   "compilerOptions": {
     "deleteOutDir": true,
-    "webpack": true,
-    "tsConfigPath": "apps/sec-events-alerts/tsconfig.app.json"
+    "tsConfigPath": "apps/auth-service/tsconfig.app.json"
   },
   "monorepo": true,
-  "root": "apps/sec-events-alerts",
+  "root": "apps/auth-service",
   "projects": {
     "auth-service": {
       "type": "application",
@@ -28,13 +27,13 @@
         "tsConfigPath": "apps/notification-service/tsconfig.app.json"
       }
     },
-    "sec-events-alerts": {
+    "telegram-service": {
       "type": "application",
-      "root": "apps/sec-events-alerts",
+      "root": "apps/telegram-service",
       "entryFile": "main",
-      "sourceRoot": "apps/sec-events-alerts/src",
+      "sourceRoot": "apps/telegram-service/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/sec-events-alerts/tsconfig.app.json"
+        "tsConfigPath": "apps/telegram-service/tsconfig.app.json"
       }
     },
     "shared": {
@@ -44,15 +43,6 @@
       "sourceRoot": "libs/shared/src",
       "compilerOptions": {
         "tsConfigPath": "libs/shared/tsconfig.lib.json"
-      }
-    },
-    "telegram-service": {
-      "type": "application",
-      "root": "apps/telegram-service",
-      "entryFile": "main",
-      "sourceRoot": "apps/telegram-service/src",
-      "compilerOptions": {
-        "tsConfigPath": "apps/telegram-service/tsconfig.app.json"
       }
     }
   }
