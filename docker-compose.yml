@@ -2,76 +2,73 @@ services:
   auth-service:
     build:
       context: .
-      dockerfile: apps/auth-service/Dockerfile
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: auth-service
     ports:
-      - '${AUTH_SERVICE_PORT:-3000}:3000'
+      - '${AUTH_SERVICE_PORT:-4000}:4000'
     environment:
-      AUTH_SERVICE_PORT: 3000
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@auth-db:5432/${AUTH_DB_NAME:-auth_db}
+      NODE_ENV: production
+      AUTH_SERVICE_PORT: 4000
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-sec_events}
+      DATABASE_SCHEMA: auth
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672
     depends_on:
-      auth-db:
+      postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:4000/health || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   notification-service:
     build:
       context: .
-      dockerfile: apps/notification-service/Dockerfile
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: notification-service
+    ports:
+      - '${NOTIFICATION_SERVICE_PORT:-4001}:4001'
     environment:
-      NOTIFICATION_SERVICE_PORT: 3001
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@notification-db:5432/${NOTIFICATION_DB_NAME:-notification_db}
+      NODE_ENV: production
+      NOTIFICATION_SERVICE_PORT: 4001
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-sec_events}
+      DATABASE_SCHEMA: notification
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672
-      TELEGRAM_SERVICE_URL: http://telegram-service:3002
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
     depends_on:
-      notification-db:
+      postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-      telegram-service:
-        condition: service_started
     restart: unless-stopped
-
-  telegram-service:
-    build:
-      context: .
-      dockerfile: apps/telegram-service/Dockerfile
-    ports:
-      - '${TELEGRAM_SERVICE_PORT:-3002}:3002'
-    environment:
-      TELEGRAM_SERVICE_PORT: 3002
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
-      TELEGRAM_ADMIN_CHAT_ID: ${TELEGRAM_ADMIN_CHAT_ID}
-    restart: unless-stopped
-
-  auth-db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${AUTH_DB_NAME:-auth_db}
-    volumes:
-      - auth-db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres} -d ${AUTH_DB_NAME:-auth_db}']
-      interval: 5s
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:4001/health || exit 1']
+      interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 15s
 
-  notification-db:
+  postgres:
     image: postgres:16-alpine
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${NOTIFICATION_DB_NAME:-notification_db}
+      POSTGRES_DB: ${POSTGRES_DB:-sec_events}
     volumes:
-      - notification-db-data:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres} -d ${NOTIFICATION_DB_NAME:-notification_db}']
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-sec_events}']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -93,6 +90,5 @@ services:
       retries: 5
 
 volumes:
-  auth-db-data:
-  notification-db-data:
+  postgres-data:
   rabbitmq-data:

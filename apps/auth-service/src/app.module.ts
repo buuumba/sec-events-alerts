@@ -6,6 +6,12 @@ import { EventsModule } from './integrations/events/events.module';
 import { HealthModule } from './health/health.module';
 
 @Module({
-  imports: [ConfigsModule, DatabaseModule, AuthModule, EventsModule, HealthModule],
+  imports: [
+    ConfigsModule,
+    DatabaseModule,
+    AuthModule,
+    EventsModule,
+    HealthModule,
+  ],
 })
 export class AppModule {}

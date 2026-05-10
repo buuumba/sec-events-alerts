@@ -20,7 +20,7 @@ export class TelegramApiClient {
     this.chatId = this.configService.getOrThrow<string>('app.telegramChatId');
   }
 
-  async sendAlert(text: string): Promise<void> {
+  async sendMessage(text: string): Promise<void> {
     const url = `https://api.telegram.org/bot${this.botToken}/sendMessage`;
 
     const body: TelegramSendMessageBody = {
@@ -40,6 +40,6 @@ export class TelegramApiClient {
       throw new Error(`Telegram API error ${response.status}: ${errorText}`);
     }
 
-    this.logger.log(`Alert sent to chat ${this.chatId}`);
+    this.logger.log(`Message sent to chat ${this.chatId}`);
   }
 }

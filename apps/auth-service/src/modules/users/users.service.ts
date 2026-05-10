@@ -3,8 +3,7 @@ import { hash } from 'bcrypt';
 import { UsersRepository } from './users.repository';
 import { RegisterUserDto } from './dto/register-user.dto';
 import { User } from './entities/user.entity';
-
-const BCRYPT_SALT_ROUNDS = 12;
+import { BCRYPT_SALT_ROUNDS } from '../auth/auth.constants';
 
 @Injectable()
 export class UsersService {

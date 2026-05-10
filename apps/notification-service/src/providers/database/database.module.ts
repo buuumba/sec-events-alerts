@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ProcessedEvent } from '../../modules/security-events/entities/processed-event.entity';
 
 @Module({
   imports: [
@@ -10,7 +9,8 @@ import { ProcessedEvent } from '../../modules/security-events/entities/processed
       useFactory: (config: ConfigService) => ({
         type: 'postgres',
         url: config.getOrThrow<string>('database.url'),
-        entities: [ProcessedEvent],
+        schema: config.getOrThrow<string>('database.schema'),
+        autoLoadEntities: true,
         synchronize: false,
         migrationsRun: true,
         migrationsTransactionMode: 'each' as const,

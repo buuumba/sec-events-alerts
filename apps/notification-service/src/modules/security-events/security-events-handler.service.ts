@@ -1,9 +1,7 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { SecurityEvent } from '@app/shared';
-import {
-  NOTIFICATION_SENDER,
-  NotificationSender,
-} from '../../common/interfaces/notification-sender.interface';
+import { AlertMessageBuilder } from '../../integrations/telegram/alert-message.builder';
+import { TelegramApiClient } from '../../integrations/telegram/telegram-api.client';
 import { DeduplicationService } from './deduplication.service';
 
 @Injectable()
@@ -12,8 +10,8 @@ export class SecurityEventsHandlerService {
 
   constructor(
     private readonly deduplicationService: DeduplicationService,
-    @Inject(NOTIFICATION_SENDER)
-    private readonly notificationSender: NotificationSender,
+    private readonly alertMessageBuilder: AlertMessageBuilder,
+    private readonly telegramApiClient: TelegramApiClient,
   ) {}
 
   async handle(event: SecurityEvent): Promise<void> {
@@ -22,7 +20,8 @@ export class SecurityEventsHandlerService {
       return;
     }
 
-    await this.notificationSender.send(event);
+    const message = this.alertMessageBuilder.buildMessage(event);
+    await this.telegramApiClient.sendMessage(message);
     await this.deduplicationService.markProcessed(event.eventId);
 
     this.logger.log(

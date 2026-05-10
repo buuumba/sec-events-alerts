@@ -27,15 +27,6 @@
         "tsConfigPath": "apps/notification-service/tsconfig.app.json"
       }
     },
-    "telegram-service": {
-      "type": "application",
-      "root": "apps/telegram-service",
-      "entryFile": "main",
-      "sourceRoot": "apps/telegram-service/src",
-      "compilerOptions": {
-        "tsConfigPath": "apps/telegram-service/tsconfig.app.json"
-      }
-    },
     "shared": {
       "type": "library",
       "root": "libs/shared",

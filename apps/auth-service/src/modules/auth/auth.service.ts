@@ -6,8 +6,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { compare, hash } from 'bcrypt';
-import { UserRole } from '@app/shared';
-import { SecurityEventType } from '@app/shared';
+import { UserRole, SecurityEventType } from '@app/shared';
 import { UsersRepository } from '../users/users.repository';
 import { UsersService } from '../users/users.service';
 import { SecurityEventsPublisher } from '../../integrations/events/security-events.publisher';
@@ -19,8 +18,7 @@ import { UserResponseDto } from './dto/user-response.dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { BruteForceService } from './brute-force.service';
 import { User } from '../users/entities/user.entity';
-
-const BCRYPT_SALT_ROUNDS = 12;
+import { BCRYPT_SALT_ROUNDS, BRUTE_FORCE_WINDOW_MS } from './auth.constants';
 
 @Injectable()
 export class AuthService {
@@ -61,7 +59,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    this.bruteForceService.resetAttempts(user.id);
+    await this.bruteForceService.resetAttempts(user.id);
     this.logger.log(
       `Login success — userId=${user.id} role=${user.role} ip=${ip ?? 'unknown'}`,
     );
@@ -143,19 +141,25 @@ export class AuthService {
       return;
     }
 
-    this.bruteForceService.recordFailedAttempt(user.id);
+    await this.bruteForceService.recordFailedAttempt(user.id, ip);
 
-    if (this.bruteForceService.shouldEmitBruteForce(user.id)) {
+    const { shouldNotifyBruteForce, shouldLock } =
+      await this.bruteForceService.evaluateAttempts(user.id);
+
+    if (shouldNotifyBruteForce && !this.wasRecentlyNotified(user)) {
       await this.securityEventsPublisher.publish({
         type: SecurityEventType.BRUTE_FORCE_DETECTED,
         userId: user.id,
         ip,
         metadata: { email: user.email },
       });
-      this.bruteForceService.markBruteForceSent(user.id);
+      await this.usersRepository.save({
+        ...user,
+        bruteForceNotifiedAt: new Date(),
+      });
     }
 
-    if (this.bruteForceService.shouldLockAccount(user.id) && !user.isLocked) {
+    if (shouldLock && !user.isLocked) {
       await this.usersService.lockAccount(user.id);
       await this.securityEventsPublisher.publish({
         type: SecurityEventType.ACCOUNT_LOCKED,
@@ -166,6 +170,14 @@ export class AuthService {
         },
       });
     }
+  }
+
+  private wasRecentlyNotified(user: User): boolean {
+    if (!user.bruteForceNotifiedAt) {
+      return false;
+    }
+    const elapsed = Date.now() - user.bruteForceNotifiedAt.getTime();
+    return elapsed < BRUTE_FORCE_WINDOW_MS;
   }
 
   private generateToken(user: User): TokenResponseDto {

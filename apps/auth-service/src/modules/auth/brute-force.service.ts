@@ -1,91 +1,53 @@
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { MoreThan, Repository } from 'typeorm';
+import { FailedLoginAttempt } from './entities/failed-login-attempt.entity';
+import { BRUTE_FORCE_WINDOW_MS } from './auth.constants';
 
 const BRUTE_FORCE_THRESHOLD = 3;
 const LOCK_THRESHOLD = 5;
-const WINDOW_MS = 60_000;
-const CLEANUP_INTERVAL_MS = 60_000;
 
-interface AttemptRecord {
-  count: number;
-  firstAttemptAt: Date;
-  bruteForceEventSent: boolean;
+export interface BruteForceEvaluation {
+  readonly shouldNotifyBruteForce: boolean;
+  readonly shouldLock: boolean;
 }
 
 @Injectable()
-export class BruteForceService implements OnModuleDestroy {
+export class BruteForceService {
   private readonly logger = new Logger(BruteForceService.name);
-  private readonly attempts = new Map<string, AttemptRecord>();
-  private readonly cleanupTimer: ReturnType<typeof setInterval>;
 
-  constructor() {
-    this.cleanupTimer = setInterval(() => this.cleanup(), CLEANUP_INTERVAL_MS);
+  constructor(
+    @InjectRepository(FailedLoginAttempt)
+    private readonly attemptsRepository: Repository<FailedLoginAttempt>,
+  ) {}
+
+  async recordFailedAttempt(userId: string, ip?: string): Promise<void> {
+    await this.attemptsRepository.save({ userId, ip });
   }
 
-  onModuleDestroy(): void {
-    clearInterval(this.cleanupTimer);
-  }
+  async evaluateAttempts(userId: string): Promise<BruteForceEvaluation> {
+    const windowStart = new Date(Date.now() - BRUTE_FORCE_WINDOW_MS);
+    const count = await this.attemptsRepository.count({
+      where: { userId, attemptedAt: MoreThan(windowStart) },
+    });
 
-  recordFailedAttempt(userId: string): void {
-    const now = new Date();
-    const existing = this.attempts.get(userId);
-
-    if (!existing || this.isWindowExpired(existing.firstAttemptAt, now)) {
-      this.attempts.set(userId, {
-        count: 1,
-        firstAttemptAt: now,
-        bruteForceEventSent: false,
-      });
-      return;
-    }
-
-    existing.count += 1;
-
-    if (existing.count === BRUTE_FORCE_THRESHOLD) {
+    if (count >= LOCK_THRESHOLD) {
       this.logger.warn(
-        `Brute force threshold reached — userId=${userId} count=${existing.count}`,
+        `Lock threshold reached — userId=${userId} count=${count}`,
       );
-    } else if (existing.count === LOCK_THRESHOLD) {
+    } else if (count >= BRUTE_FORCE_THRESHOLD) {
       this.logger.warn(
-        `Lock threshold reached — userId=${userId} count=${existing.count}`,
+        `Brute force threshold reached — userId=${userId} count=${count}`,
       );
     }
+
+    return {
+      shouldNotifyBruteForce: count >= BRUTE_FORCE_THRESHOLD,
+      shouldLock: count >= LOCK_THRESHOLD,
+    };
   }
 
-  shouldEmitBruteForce(userId: string): boolean {
-    const record = this.attempts.get(userId);
-    return (
-      record !== undefined &&
-      record.count >= BRUTE_FORCE_THRESHOLD &&
-      !record.bruteForceEventSent
-    );
-  }
-
-  markBruteForceSent(userId: string): void {
-    const record = this.attempts.get(userId);
-    if (record) {
-      record.bruteForceEventSent = true;
-    }
-  }
-
-  shouldLockAccount(userId: string): boolean {
-    const record = this.attempts.get(userId);
-    return record !== undefined && record.count >= LOCK_THRESHOLD;
-  }
-
-  resetAttempts(userId: string): void {
-    this.attempts.delete(userId);
-  }
-
-  private isWindowExpired(firstAttemptAt: Date, now: Date): boolean {
-    return now.getTime() - firstAttemptAt.getTime() > WINDOW_MS;
-  }
-
-  private cleanup(): void {
-    const now = new Date();
-    for (const [userId, record] of this.attempts) {
-      if (this.isWindowExpired(record.firstAttemptAt, now)) {
-        this.attempts.delete(userId);
-      }
-    }
+  async resetAttempts(userId: string): Promise<void> {
+    await this.attemptsRepository.delete({ userId });
   }
 }

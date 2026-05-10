@@ -24,6 +24,9 @@ export class User {
   @Column({ default: false })
   isLocked: boolean;
 
+  @Column({ type: 'timestamp', nullable: true })
+  bruteForceNotifiedAt: Date | null;
+
   @CreateDateColumn()
   createdAt: Date;
 
