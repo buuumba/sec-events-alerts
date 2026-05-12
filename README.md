@@ -1,98 +1,239 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Security Events & Alerts
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Демо-версия микросервисного приложения на NestJS для отслеживания событий безопасности. Система фиксирует неудачные попытки входа, определяет возможные brute-force атаки и отправляет уведомления в Telegram через RabbitMQ.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Архитектура
 
-## Description
+| Сервис                 | Порт  | Описание                                                                         |
+| ---------------------- | ----- | -------------------------------------------------------------------------------- |
+| auth-service           | 4000  | Аутентификация, brute-force detection, события                                   |
+| notification-service   | 4001  | Потребление событий, отправка в Telegram                                         |
+| PostgreSQL             | 5435  | Единая БД, схемы `auth` и `notification` (demo; в prod лучше отдельные инстансы) |
+| RabbitMQ               | 5672  | Брокер сообщений                                                                 |
+| RabbitMQ Management UI | 15672 | Веб-панель мониторинга очередей                                                  |
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Стек
 
-## Project setup
+- **Backend:** NestJS, TypeScript, TypeORM
+- **Message Broker:** RabbitMQ (`@golevelup/nestjs-rabbitmq`)
+- **Database:** PostgreSQL 16
+- **Auth:** JWT, Passport, bcrypt
+- **API Docs:** Swagger (`@nestjs/swagger`)
+- **Notifications:** Telegram Bot API
+- **Infrastructure:** Docker, Docker Compose
 
-```bash
-$ pnpm install
+## Запуск проекта
+
+### Предварительные требования
+
+- Docker и Docker Compose
+- Telegram-бот и чат для получения уведомлений (см. раздел [Telegram](#telegram))
+
+### 1. Настроить `.env`
+
+```powershell
+copy .env.example .env
 ```
 
-## Compile and run the project
+Заполнить обязательные переменные:
 
-```bash
-# development
-$ pnpm run start
-
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+```env
+TELEGRAM_BOT_TOKEN=<токен от BotFather>
+TELEGRAM_CHAT_ID=<id канала или чата, например @my_channel>
+JWT_SECRET=<произвольный секрет>
 ```
 
-## Run tests
+### 2. Запустить
 
-```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+```powershell
+docker compose up --build
 ```
 
-## Deployment
+Команда поднимет PostgreSQL, RabbitMQ и оба сервиса. Миграции запускаются автоматически при старте.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+### 3. Проверить
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+- **Swagger UI:** http://localhost:4000/api/docs
+- **Health auth:** http://localhost:4000/health
+- **Health notification:** http://localhost:4001/health
+- **RabbitMQ Management:** http://localhost:15672 (guest / guest)
 
-```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+### Полный сброс
+
+```powershell
+docker compose down -v
+docker compose up --build
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+---
 
-## Resources
+## Тестирование API
 
-Check out a few resources that may come in handy when working with NestJS:
+Все эндпоинты доступны через **Swagger UI** (`http://localhost:4000/api/docs`) или Postman.
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+### Регистрация
 
-## Support
+```
+POST http://localhost:4000/auth/register
+Content-Type: application/json
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+{
+  "email": "test@test.com",
+  "password": "Password123!"
+}
+```
 
-## Stay in touch
+Ответ: `{ "accessToken": "eyJ..." }`
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+### Логин
 
-## License
+```
+POST http://localhost:4000/auth/login
+Content-Type: application/json
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+{
+  "email": "test@test.com",
+  "password": "Password123!"
+}
+```
+
+### Профиль (требуется JWT)
+
+```
+GET http://localhost:4000/auth/me
+Authorization: Bearer <accessToken>
+```
+
+### Смена пароля (требуется JWT)
+
+```
+PATCH http://localhost:4000/auth/change-password
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+
+{
+  "currentPassword": "Password123!",
+  "newPassword": "NewPassword456!"
+}
+```
+
+### Brute-force тест
+
+Отправить 5+ раз логин с неверным паролем. После превышения порога аккаунт блокируется, событие публикуется в RabbitMQ и notification-service отправляет уведомление в Telegram:
+
+```
+POST http://localhost:4000/auth/login
+Content-Type: application/json
+
+{
+  "email": "test@test.com",
+  "password": "wrong-password"
+}
+```
+
+### Симуляция подозрительного IP (требуется JWT)
+
+```
+POST http://localhost:4000/auth/simulate/suspicious-ip
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+
+{
+  "ip": "185.220.101.42"
+}
+```
+
+Немедленно генерирует событие `suspicious_ip` → уведомление в Telegram. Удобно для быстрой проверки без ожидания brute-force.
+
+---
+
+## RabbitMQ
+
+**Management UI:** http://localhost:15672 — логин `guest` / `guest`
+
+Здесь можно посмотреть состояние exchanges, очередей и live message rates после вызова эндпоинтов.
+
+### Топология
+
+| Exchange                | Type   | Описание                         |
+| ----------------------- | ------ | -------------------------------- |
+| `security.events`       | topic  | Основной exchange для событий    |
+| `security.events.retry` | topic  | Retry exchange (задержка 10 сек) |
+| `security.events.dlx`   | fanout | Dead Letter Exchange             |
+
+| Queue                          | Описание                                      |
+| ------------------------------ | --------------------------------------------- |
+| `security.notifications`       | Основная очередь → notification-service       |
+| `security.notifications.retry` | Retry-очередь (TTL 10s → обратно в exchange)  |
+| `security.notifications.dlq`   | Dead Letter Queue (после 3 неудачных попыток) |
+
+### Routing Key
+
+Формат: `security.<severity>` — routing key формируется по уровню критичности события, а не по типу:
+
+| Routing Key         | Severity | Примеры событий        |
+| ------------------- | -------- | ---------------------- |
+| `security.low`      | LOW      | `password_changed`     |
+| `security.medium`   | MEDIUM   | `suspicious_ip`        |
+| `security.high`     | HIGH     | `brute_force_detected` |
+| `security.critical` | CRITICAL | `account_locked`       |
+
+Consumer подписан на wildcard `security.*` - получает события всех уровней.
+
+## Telegram
+
+Бот отправляет форматированные уведомления при каждом security-событии.
+
+### Быстрое подключение к существующей демо-группе
+
+Чтобы не создавать собственного бота, можно подключиться к уже существующей тестовой группе:
+
+1. Вступить в группу: https://t.me/sec_events_demo
+2. В `.env` указать готовые креды:
+
+```env
+TELEGRAM_BOT_TOKEN=по запросу
+TELEGRAM_CHAT_ID=@sec_events_demo
+```
+
+3. Запустить проект и вызвать любой эндпоинт — уведомления появятся в группе.
+
+### Создание собственного бота
+
+1. Написать [@BotFather](https://t.me/BotFather) → `/newbot` → получить токен
+2. Создать канал или группу в Telegram
+3. Добавить бота как администратора
+4. Указать `TELEGRAM_BOT_TOKEN` и `TELEGRAM_CHAT_ID` в `.env`
+
+`TELEGRAM_CHAT_ID` может быть:
+
+- Username канала: `@my_channel`
+- Числовой ID чата: `-1001234567890` (получить через [@userinfobot](https://t.me/userinfobot))
+
+---
+
+## Структура проекта
+
+```
+sec-events-alerts/
+├── apps/
+│   ├── auth-service/         # Аутентификация, brute-force, события
+│   └── notification-service/ # Consumer, Telegram-отправка
+├── libs/
+│   └── shared/               # Общие типы, константы, конфиги
+├── docker-compose.yml
+├── Dockerfile                # Multi-stage, параметризован через ARG
+
+```
+
+---
+
+## минимальный TODO
+
+- [ ] Unit/E2E тесты (Jest)
+- [ ] Rate limiting на эндпоинтах
+- [ ] Разделение БД per-service (отдельные PostgreSQL инстансы)
+- [ ] Graceful shutdown с корректным завершением текущих сообщений RabbitMQ
+- [ ] Email-уведомления как альтернативный канал доставки
+- [ ] Dashboard для просмотра истории событий безопасности
+- [ ] Pre-commit линтер (husky + lint-staged)
