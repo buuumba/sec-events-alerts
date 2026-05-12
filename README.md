@@ -1,16 +1,36 @@
 # Security Events & Alerts
 
-Демо-версия микросервисного приложения на NestJS для отслеживания событий безопасности. Система фиксирует неудачные попытки входа, определяет возможные brute-force атаки и отправляет уведомления в Telegram через RabbitMQ.
+Демо-версия микросервисного приложения на NestJS для отслеживания событий безопасности. Система фиксирует неудачные попытки входа, определяет brute-force атаки и отправляет уведомления в Telegram через RabbitMQ.
 
-## Архитектура
+## Быстрый старт
 
-| Сервис                 | Порт  | Описание                                                                         |
-| ---------------------- | ----- | -------------------------------------------------------------------------------- |
-| auth-service           | 4000  | Аутентификация, brute-force detection, события                                   |
-| notification-service   | 4001  | Потребление событий, отправка в Telegram                                         |
-| PostgreSQL             | 5435  | Единая БД, схемы `auth` и `notification` (demo; в prod лучше отдельные инстансы) |
-| RabbitMQ               | 5672  | Брокер сообщений                                                                 |
-| RabbitMQ Management UI | 15672 | Веб-панель мониторинга очередей                                                  |
+```powershell
+# 1. Скопировать и заполнить конфиг
+copy .env.example .env
+
+# 2. Запустить
+docker compose up --build
+```
+
+**Обязательные переменные в `.env`:**
+
+```env
+TELEGRAM_BOT_TOKEN=<токен от BotFather>
+TELEGRAM_CHAT_ID=<@username канала или числовой ID>
+JWT_SECRET=<произвольный секрет>
+```
+
+Миграции запускаются автоматически при старте.
+
+## Сервисы
+
+| Сервис               | Порт  | Описание                                       |
+| -------------------- | ----- | ---------------------------------------------- |
+| auth-service         | 4000  | Аутентификация, brute-force detection, события |
+| notification-service | 4001  | Consumer RabbitMQ, отправка в Telegram         |
+| PostgreSQL           | 5432  | Единая БД со схемами `auth` и `notification` (demo; в prod лучше отдельные инстансы) |
+| RabbitMQ             | 5672  | Брокер сообщений                               |
+| RabbitMQ Management  | 15672 | Веб-панель мониторинга очередей                |
 
 ## Стек
 
@@ -22,136 +42,47 @@
 - **Notifications:** Telegram Bot API
 - **Infrastructure:** Docker, Docker Compose
 
-## Запуск проекта
-
-### Предварительные требования
-
-- Docker и Docker Compose
-- Telegram-бот и чат для получения уведомлений (см. раздел [Telegram](#telegram))
-
-### 1. Настроить `.env`
+## Команды
 
 ```powershell
-copy .env.example .env
+# Сборка
+pnpm build:auth              # Только auth-service
+pnpm build:notification      # Только notification-service
+
+# Локальный запуск (без Docker)
+pnpm start:auth:dev          # auth-service с watch
+pnpm start:notification:dev  # notification-service с watch
+
+# Тесты
+pnpm test                    # Все unit-тесты
+pnpm test:cov                # С покрытием
+pnpm test:e2e                # E2E тесты
+
+# Docker
+docker compose up --build    # Запустить всё
+docker compose down -v       # Остановить и удалить volumes (полный сброс)
 ```
 
-Заполнить обязательные переменные:
+## API
 
-```env
-TELEGRAM_BOT_TOKEN=<токен от BotFather>
-TELEGRAM_CHAT_ID=<id канала или чата, например @my_channel>
-JWT_SECRET=<произвольный секрет>
-```
+Swagger UI: **http://localhost:4000/api/docs**
 
-### 2. Запустить
-
-```powershell
-docker compose up --build
-```
-
-Команда поднимет PostgreSQL, RabbitMQ и оба сервиса. Миграции запускаются автоматически при старте.
-
-### 3. Проверить
-
-- **Swagger UI:** http://localhost:4000/api/docs
-- **Health auth:** http://localhost:4000/health
-- **Health notification:** http://localhost:4001/health
-- **RabbitMQ Management:** http://localhost:15672 (guest / guest)
-
-### Полный сброс
-
-```powershell
-docker compose down -v
-docker compose up --build
-```
-
----
-
-## Тестирование API
-
-Все эндпоинты доступны через **Swagger UI** (`http://localhost:4000/api/docs`) или Postman.
-
-### Регистрация
-
-```
-POST http://localhost:4000/auth/register
-Content-Type: application/json
-
-{
-  "email": "test@test.com",
-  "password": "Password123!"
-}
-```
-
-Ответ: `{ "accessToken": "eyJ..." }`
-
-### Логин
-
-```
-POST http://localhost:4000/auth/login
-Content-Type: application/json
-
-{
-  "email": "test@test.com",
-  "password": "Password123!"
-}
-```
-
-### Профиль (требуется JWT)
-
-```
-GET http://localhost:4000/auth/me
-Authorization: Bearer <accessToken>
-```
-
-### Смена пароля (требуется JWT)
-
-```
-PATCH http://localhost:4000/auth/change-password
-Authorization: Bearer <accessToken>
-Content-Type: application/json
-
-{
-  "currentPassword": "Password123!",
-  "newPassword": "NewPassword456!"
-}
-```
+| Метод | Endpoint                       | Описание                      | Auth |
+| ----- | ------------------------------ | ----------------------------- | ---- |
+| POST  | `/auth/register`               | Регистрация                   | —    |
+| POST  | `/auth/login`                  | Вход, получение JWT           | —    |
+| GET   | `/auth/me`                     | Профиль текущего пользователя | JWT  |
+| PATCH | `/auth/change-password`        | Смена пароля                  | JWT  |
+| POST  | `/auth/simulate/suspicious-ip` | Симуляция подозрительного IP  | JWT  |
+| GET   | `/health`                      | Health check                  | —    |
 
 ### Brute-force тест
 
-Отправить 5+ раз логин с неверным паролем. После превышения порога аккаунт блокируется, событие публикуется в RabbitMQ и notification-service отправляет уведомление в Telegram:
-
-```
-POST http://localhost:4000/auth/login
-Content-Type: application/json
-
-{
-  "email": "test@test.com",
-  "password": "wrong-password"
-}
-```
-
-### Симуляция подозрительного IP (требуется JWT)
-
-```
-POST http://localhost:4000/auth/simulate/suspicious-ip
-Authorization: Bearer <accessToken>
-Content-Type: application/json
-
-{
-  "ip": "185.220.101.42"
-}
-```
-
-Немедленно генерирует событие `suspicious_ip` → уведомление в Telegram. Удобно для быстрой проверки без ожидания brute-force.
-
----
+Отправить 5+ раз логин с неверным паролем — аккаунт блокируется, событие публикуется в RabbitMQ, notification-service отправляет уведомление в Telegram.
 
 ## RabbitMQ
 
-**Management UI:** http://localhost:15672 — логин `guest` / `guest`
-
-Здесь можно посмотреть состояние exchanges, очередей и live message rates после вызова эндпоинтов.
+Management UI: **http://localhost:15672** (guest / guest)
 
 ### Топология
 
@@ -161,15 +92,15 @@ Content-Type: application/json
 | `security.events.retry` | topic  | Retry exchange (задержка 10 сек) |
 | `security.events.dlx`   | fanout | Dead Letter Exchange             |
 
-| Queue                          | Описание                                      |
-| ------------------------------ | --------------------------------------------- |
-| `security.notifications`       | Основная очередь → notification-service       |
-| `security.notifications.retry` | Retry-очередь (TTL 10s → обратно в exchange)  |
-| `security.notifications.dlq`   | Dead Letter Queue (после 3 неудачных попыток) |
+| Queue                          | Описание                                     |
+| ------------------------------ | -------------------------------------------- |
+| `security.notifications`       | Основная очередь → notification-service      |
+| `security.notifications.retry` | Retry-очередь (TTL 10s → обратно в exchange) |
+| `security.notifications.dlq`   | Dead Letter Queue (после 3 попыток)          |
 
 ### Routing Key
 
-Формат: `security.<severity>` — routing key формируется по уровню критичности события, а не по типу:
+Формат: `security.<severity>`
 
 | Routing Key         | Severity | Примеры событий        |
 | ------------------- | -------- | ---------------------- |
@@ -178,39 +109,27 @@ Content-Type: application/json
 | `security.high`     | HIGH     | `brute_force_detected` |
 | `security.critical` | CRITICAL | `account_locked`       |
 
-Consumer подписан на wildcard `security.*` - получает события всех уровней.
-
 ## Telegram
 
 Бот отправляет форматированные уведомления при каждом security-событии.
 
-### Быстрое подключение к существующей демо-группе
+### Быстрое подключение к тестовой группе
 
-Чтобы не создавать собственного бота, можно подключиться к уже существующей тестовой группе:
-
-1. Вступить в группу: https://t.me/sec_events_demo
-2. В `.env` указать готовые креды:
+1. Вступить: https://t.me/sec_events_demo
+2. Указать в `.env`:
 
 ```env
 TELEGRAM_BOT_TOKEN=по запросу
 TELEGRAM_CHAT_ID=@sec_events_demo
 ```
 
-3. Запустить проект и вызвать любой эндпоинт — уведомления появятся в группе.
-
 ### Создание собственного бота
 
-1. Написать [@BotFather](https://t.me/BotFather) → `/newbot` → получить токен
-2. Создать канал или группу в Telegram
-3. Добавить бота как администратора
-4. Указать `TELEGRAM_BOT_TOKEN` и `TELEGRAM_CHAT_ID` в `.env`
+1. [@BotFather](https://t.me/BotFather) → `/newbot` → получить токен
+2. Создать канал/группу, добавить бота как администратора
+3. Указать `TELEGRAM_BOT_TOKEN` и `TELEGRAM_CHAT_ID` в `.env`
 
-`TELEGRAM_CHAT_ID` может быть:
-
-- Username канала: `@my_channel`
-- Числовой ID чата: `-1001234567890` (получить через [@userinfobot](https://t.me/userinfobot))
-
----
+`TELEGRAM_CHAT_ID` — username канала (`@my_channel`) или числовой ID (`-1001234567890`).
 
 ## Структура проекта
 
@@ -220,20 +139,17 @@ sec-events-alerts/
 │   ├── auth-service/         # Аутентификация, brute-force, события
 │   └── notification-service/ # Consumer, Telegram-отправка
 ├── libs/
-│   └── shared/               # Общие типы, константы, конфиги
+│   └── shared/               # Общие типы, константы, DTO
 ├── docker-compose.yml
-├── Dockerfile                # Multi-stage, параметризован через ARG
-
+└── Dockerfile                # Multi-stage, параметризован через ARG SERVICE_NAME
 ```
 
----
+## TODO
 
-## минимальный TODO
-
-- [ ] Unit/E2E тесты (Jest)
+- [ ] e2e тесты (например testconteiners)
 - [ ] Rate limiting на эндпоинтах
+- [ ] Graceful shutdown (корректное завершение обработки RabbitMQ-сообщений)
 - [ ] Разделение БД per-service (отдельные PostgreSQL инстансы)
-- [ ] Graceful shutdown с корректным завершением текущих сообщений RabbitMQ
-- [ ] Email-уведомления как альтернативный канал доставки
-- [ ] Dashboard для просмотра истории событий безопасности
-- [ ] Pre-commit линтер (husky + lint-staged)
+- [ ] Email как альтернативный канал уведомлений
+- [ ] Dashboard для просмотра истории событий
+- [ ] Линтер, Pre-commit hooks (husky + lint-staged)
