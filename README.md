@@ -24,13 +24,13 @@ JWT_SECRET=<произвольный секрет>
 
 ## Сервисы
 
-| Сервис               | Порт  | Описание                                       |
-| -------------------- | ----- | ---------------------------------------------- |
-| auth-service         | 4000  | Аутентификация, brute-force detection, события |
-| notification-service | 4001  | Consumer RabbitMQ, отправка в Telegram         |
+| Сервис               | Порт  | Описание                                                                             |
+| -------------------- | ----- | ------------------------------------------------------------------------------------ |
+| auth-service         | 4000  | Аутентификация, brute-force detection, события                                       |
+| notification-service | 4001  | Consumer RabbitMQ, отправка в Telegram                                               |
 | PostgreSQL           | 5432  | Единая БД со схемами `auth` и `notification` (demo; в prod лучше отдельные инстансы) |
-| RabbitMQ             | 5672  | Брокер сообщений                               |
-| RabbitMQ Management  | 15672 | Веб-панель мониторинга очередей                |
+| RabbitMQ             | 5672  | Брокер сообщений                                                                     |
+| RabbitMQ Management  | 15672 | Веб-панель мониторинга очередей                                                      |
 
 ## Стек
 
@@ -147,6 +147,7 @@ sec-events-alerts/
 ## TODO
 
 - [ ] e2e тесты (например testconteiners)
+- [ ] refresh-token, отдельно вынести модуль User
 - [ ] Rate limiting на эндпоинтах
 - [ ] Graceful shutdown (корректное завершение обработки RabbitMQ-сообщений)
 - [ ] Разделение БД per-service (отдельные PostgreSQL инстансы)
